@@ -1,0 +1,90 @@
+ <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vue + Element Plus 图标测试</title>
+  <!-- 1. 引入 Element Plus 的样式 -->
+  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 在模板中使用图标 (修改为 kebab-case) -->
+    <el-button type="primary">
+      <el-icon><upload-filled /></el-icon>
+      <span>点击上传</span>
+    </el-button>
+
+    <hr>
+
+    <!-- 也可以单独使用图标 (修改为 kebab-case) -->
+    <div style="font-size: 48px; color: #409EFC;">
+      <el-icon><upload-filled /></el-icon>
+    </div>
+
+    <!-- 再测试一个其他图标 (修改为 kebab-case) -->
+    <div style="font-size: 48px; color: red; margin-top: 20px;">
+      <el-icon><delete /></el-icon>
+    </div>
+   <div>
+    <el-upload
+      class="upload-demo"
+      drag
+      action="https://run.mocky.io/v3/9d059bf9-4660-45f2-925d-ce80ad6c4d15"
+      multiple
+    >
+      <!-- 修改为 kebab-case -->
+      <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+      <div class="el-upload__text">
+        拖拽文件到此处或 <em>点击上传</em>
+      </div>
+    </el-upload>
+  </div>
+</div>
+
+
+
+  <!-- 2. 引入 Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- 引入 Element Plus 组件库 -->
+  <script src="https://unpkg.com/element-plus"></script>
+  <!-- 引入 Element Plus 图标库 -->
+  <!-- 这个脚本会创建一个全局变量 ElementPlusIconsVue -->
+  <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+
+  <!-- 3. 你的主应用脚本 -->
+  <script>
+    // 创建 Vue 应用实例
+    const { createApp } = Vue;
+    const app = createApp({
+      data() {
+        return {
+          message: 'Hello Vue 3!'
+        }
+      }
+    });
+
+    // 使用 Element Plus
+    app.use(ElementPlus);
+
+    // --- 关键步骤：注册所有图标 ---
+    // 检查全局变量 ElementPlusIconsVue 是否存在
+    if (typeof ElementPlusIconsVue !== 'undefined') {
+      // 遍历 ElementPlusIconsVue 对象
+      // 它的结构是 { 'UploadFilled': UploadFilled组件, 'Delete': Delete组件, ... }
+      for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+        // 将每个图标组件注册为全局组件，组件名就是 key (如 'UploadFilled')
+        app.component(key, component);
+      }
+      console.log("所有 Element Plus 图标已成功注册！");
+    } else {
+      console.error("未能加载 Element Plus 图标库，请检查网络或CDN链接。");
+    }
+    // --- 注册结束 ---
+
+    // 挂载应用
+    app.mount('#app');
+  </script>
+
+</body>
+</html>

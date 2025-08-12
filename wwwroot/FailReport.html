@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FailReport</title>
+    <script src="./Static/js/vue.global.js"></script>
+    <!-- element-plus -->
+    <link rel="stylesheet" href="./Static/css/index.css">
+    <script src="./Static/js/index.full.js"></script>
+    <script src="./Static/js/Icons/index.iife.js"></script>
+    <script src="./Static/js/zh-cn.js"></script>
+    <script src="./Static/js/jquery.js"></script>
+    <script src="./Static/js/echarts.js"></script>
+    <script src="./Static/js/dayjs.min.js"></script>
+
+    <link href="./Static/img/favicon32.ico" rel="shortcut icon" type="image/x-icon">
+    <!-- clipboard -->
+
+    <script src="./Static/js/clipboard.js"></script>
+    <!-- 
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.js"></script>
+    <link href="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.12/index.css" rel="stylesheet">
+    <script src="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.12/index.full.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.12/locale/zh-cn.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/dayjs/1.11.9/dayjs.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/clipboard.js/2.0.11/clipboard.js"></script> -->
+    <script>
+        // 存储原始传入的名称
+        let pkg_name_origin = null;
+        const npmInstall = (originName) => {
+            // Trim string
+            const name = originName.trim();
+            pkg_name_origin = name;
+            // 三种引入方式
+            // 如果是一个有效的URL，直接通过<script />标签插入
+            if (/^https?:\/\//.test(name)) return injectScript(name);
+            // 如果指定了版本，尝试使用unpkg加载
+            if (name.indexOf('@') !== -1) return unpkg(name);
+            // 否则，尝试使用cdnjs搜索
+            return cdnjs(name);
+        };
+
+        // 在页面中插入<script />标签
+        const injectScript = (url) => {
+            const script = document.createElement('script');
+            script.src = url;
+            script.onload = () => {
+                console.log(pkg_name_origin, ' 安装成功。');
+            };
+            script.onerror = () => {
+                console.log(pkg_name_origin, ' 安装失败。');
+            };
+            document.body.appendChild(script);
+            // document.body.removeChild(script);
+        };
+
+        const unpkg = (name) => {
+            injectScript(`https://unpkg.com/${name}`);
+        };
+
+        const cdnjs = async (name) => {
+            const searchPromise = await fetch(
+                `https://api.cdnjs.com/libraries?search=${name}`,
+                // 不显示referrer的任何信息在请求头中
+                { referrerPolicy: 'no-referrer' }
+            );
+            const { results, total } = await searchPromise.json();
+            if (total === 0) {
+                console.error('Sorry, ', name, ' not found, please try another keyword.');
+                return;
+            }
+
+            // 取结果中最相关的一条
+            const { name: exactName, latest: url } = results[0];
+            if (name !== exactName) {
+                console.log(name, ' not found, import ', exactName, ' instead.');
+            }
+            // 通过<script />标签插入
+            injectScript(url);
+        };
+    </script>
+
+
+
+
+</head>
+
+
+<body>
+    <div id="app">
+        <div class="leftDiv">
+            <!-- <el-button :plain="true" @click="DevFun">Primary</el-button> -->
+            <div class="menu">
+
+                <el-select style="width: 214px;" v-model="SelectValue" placeholder="Select" filterable>
+                    <el-option v-for="item in LogDirectorys" :key="item" :value="item" />
+                </el-select>
+                <el-button style="width: 110px;" @click="GetAllFail(this.SelectValue)"
+                    type="primary">获取Fail列表</el-button>
+                <span style="margin-left: 5px;">总数:{{FailCount}}</span>
+
+
+                <span style="margin-left: 5px;">类数:{{ GroupDatas}}</span>
+                <div>
+                    <el-select style="width: 214px;" v-model="SelectChannelValue" placeholder="请选择通道" filterable>
+                        <el-option v-for="item in Array.from({ length: 16 }, (_, i) => i + 1)" :key="item"
+                            :value="item" />
+                    </el-select>
+                </div>
+                <div class="fct" v-if="IsClosePanel" style=" margin-top: 5px;">
+                    <el-select style="width: 214px;" v-model="SelectFCTValue" placeholder="FCT" filterable>
+                        <el-option v-for="item in FCTList" :key="item" :value="item" />
+                    </el-select>
+                    <el-button style="width: 110px;" @click="OpenFCTDir(this.SelectFCTValue)"
+                        type="primary">打开</el-button>
+                    <el-link style="margin-left: 5px;" type="primary" href="/E_Index.html"
+                        target="_blank">docs</el-link>
+                </div>
+
+                <div class="datepicker" v-if="IsClosePanel">
+                    <el-date-picker style="width: 195px; margin-top: 5px;" v-model="datefilter"
+                        @change="DatefilterTable()" format="YYYY-MM-DD HH:mm:ss" type="datetimerange"
+                        range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" />
+                </div>
+
+                <div>
+                    <!-- <el-button @click="GetChartFial()" type="primary">获取Fail图表</el-button> -->
+                    <!-- input 对应的值更新后执行search_input 事件 -->
+
+                    <!-- <el-input v-model="search" @change="search_input" @dblclick="ClearText()" placeholder="search" /> -->
+                    <el-input style="margin-top: 5px; width: 214px;" v-model="search" @input="search_input"
+                        @dblclick="ClearText()" placeholder="search"></el-input>
+                    {{IsFuzzyQuery!=true?"模糊查询":"精确查询"}}
+                    <!-- 这里需要注意 当定义的方法需要参数的情况下 必须使用括号@change="search_input()" 不然就会将本组件的text 传入  -->
+                    <el-switch v-model="IsFuzzyQuery" width="80" inline-prompt active-text="精确查询"
+                        @change="search_input()" inactive-text="模糊查询"></el-switch>
+                </div>
+
+                <el-switch v-model="IsEditSeqx" width="130" inline-prompt active-text="快速编辑seqx"
+                    inactive-text="关闭快速编辑seqx"></el-switch>
+                <div><el-switch v-model="IsClosePanel" width="130" inline-prompt active-text="ClosePanel"
+                        inactive-text="关闭HexPanel"></el-switch></div>
+                <el-switch v-model="IsShowFailTable" inline-prompt active-text="显示GRR"
+                    inactive-text="显示FailTable"></el-switch>
+                <div v-if="IsEditSeqx">
+                    <el-input style="margin-top: 5px; width: 214px;" v-model="RAdd" placeholder="继电器地址"></el-input>
+                    <br><el-input style="margin-top: 5px; width: 214px;" v-model="RIndex" placeholder="继电器"></el-input>
+                    <br><el-input style="margin-top: 5px; width: 214px;" v-model="Re" placeholder="测试项目"></el-input>
+                    <br><el-input style="margin-top: 5px; width: 214px;" v-model="CodeIndex"
+                        placeholder="测试项目需要传入的Code"></el-input>
+                    <br>
+                    <el-button class="btn" style="width: 110px;" @click="StrTOSeqx()" type="primary"
+                        data-clipboard-target="#copyText">生成seqx</el-button>
+                    <br>
+                    <pre id="copyText">{{seqx}}</pre>
+                    <!-- <textarea id="copyText" style="width: 500px; height: 200px;" >{{seqx}}</textarea> -->
+                    <!-- <div style="white-space: pre-wrap;">{{seqx}}</div> -->
+
+
+
+                </div>
+
+                <div>
+                    <el-input style="margin-top: 5px; width: 214px;" v-model="LogsPath" @input="SetLogsPath"
+                        placeholder="LogsPath"></el-input>
+                </div>
+                <div>
+
+                    <el-upload drag limit="1" accept="*.xlsx;*.zip" :on-success="uploadSuccess" :disabled="isUploading"
+                        :before-upload="beforeUpload" action="/api/FailReport/UploadExcel/upload" :multiple="false"
+                        :file-list="uploadedFiles">
+                        <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+                        <div class="el-upload__text">
+                            拖拽文件到此处或 <em>点击上传</em>
+                        </div>
+                        <template #tip>
+                            <div class="el-upload__tip">
+                                小于20M的Excel文件
+                            </div>
+                        </template>
+                    </el-upload>
+                </div>
+            </div>
+
+            <div class="leftDiv_chart">
+                <!-- 显示图表在右侧 -->
+                <div ref="mychart" style=" width: 100%; height: 420px;">
+
+                </div>
+            </div>
+
+        </div>
+        <!-- <el-watermark :width="85" :height="28" content="FailReport"> -->
+        <div class="tablemain" style="height: calc(100% - 500px);">
+
+
+            <div v-if="IsClosePanel" class="tablemain_Tools">
+                <div>
+                    <!-- <div style=" width:98% ;"> -->
+
+                    <!-- 一个输入框根据 -->
+                    <el-input style="width: 214px;" v-model="DataSpilt" @input="SetDataSpiltCount()"
+                        placeholder="SpillCout"></el-input>
+
+                    {{DataSpiltCount}}
+                    <!-- </div> -->
+                    <!-- <div>
+        <el-button style="width: 110px;" @click="hexToX($event)" type="primary">获取Fail列表</el-button>
+    </div> -->
+                    <!-- Copy https://www.toolhelper.cn/ -->
+                    <div>
+                        <el-input style="margin-top: 5px; width: 214px;" clearable v-model="hex" @input=hexToX("hex")
+                            placeholder="HEX" />
+                    </div>
+
+                    <div>
+                        <el-input style="margin-top: 5px; width: 214px;" clearable v-model="dec" @input=hexToX("dec")
+                            placeholder="DEC" />
+                    </div>
+
+                    <div>
+                        <el-input style="margin-top: 5px; width: 214px;" clearable v-model="oct" @input=hexToX("oct")
+                            placeholder="OCT" />
+                    </div>
+
+                    <div>
+                        <el-input style="margin-top: 5px; width: 214px;" clearable v-model="bin" @input=hexToX("bin")
+                            placeholder="BIN" />
+                    </div>
+
+                    <div>
+                        <el-input style="margin-top: 5px; width: 214px;" clearable v-model="ascii"
+                            @input=hexToX("ascii") placeholder="ASCII" />
+                    </div>
+                </div>
+            </div>
+            <div class="GrrSettings">
+                <el-transfer v-show="IsShowFailTable" v-model="GrrSettingsvalue" :titles="['不显示的GRR', '显示的GRR']"
+                    @change="GetGrrChartData()" filterable :filter-method="filterMethod" filter-placeholder="查询"
+                    :data="GrrSettingsdata" />
+            </div>
+
+
+            <div style="width: 98%; border: 1px solid rgb(196, 196, 196); height:calc(98vh - 20rem)">
+                <!-- 使用element-ui 渲染出 FailList   table-layout='auto' -->
+                <el-table v-show="!IsShowFailTable" :data="FailList.Data" style="height: 500px;" stripe
+                    show-overflow-tooltip="true">
+                    <el-table-column type="index" align="center" label="index" width="68"></el-table-column>
+                    <!-- <el-table-column align="center"  prop="FailItme" label="FailItme"> </el-table-column> -->
+                    <el-table-column align="center" sortable label="项目">
+                        <template #default="scope">
+                            <div :class="scope.row.IsHigh==null?``:(scope.row.IsHigh?`RedHigh`:`GreenLow`)"
+                                v-html="scope.row.FailItme">
+                        </template>
+                    </el-table-column>
+
+
+                    <el-table-column align="center" prop="FailPath" label="路径" width="460"></el-table-column>
+                    <el-table-column align="center" prop="FailDate" label="时间" :formatter="formatDate"
+                        width="180"></el-table-column>
+                    <!-- dayjs("2023-11-11T17:03:29.6729195+08:00").format('YYYY-MM-DD HH:mm:ss') -->
+                    <!-- 对比项是否偏高 高出范围则为true 否则 false -->
+                    <!-- <el-table-column align="center" prop="IsHigh" label="IsHigh" width="80"></el-table-column> -->
+                </el-table>
+
+                <div ref="Grr" v-show="IsShowFailTable" style="width: 100%; height: 100%;"> IsShowFailTable</div>
+
+                <div v-if="!IsShowFailTable">
+                    <!-- {{overview}} -->
+                    <div style="color: #3f99e2;" v-for="item in overview">
+                        {{ item }}
+                    </div>
+                    <div>
+                        <label>Fail 统计</label></br>
+                        <label style="color: #db4a4a;" v-for="item in this.ChartFial" :key="name">
+                            {{ item.name }}:{{ item.value }}</br>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+
+
+
+
+        </div>
+        <!-- </el-watermark> -->
+
+    </div>
+</body>
+<style>
+    .tablemain_Tools {
+        width: 100%;
+        height: 220px;
+        /* display: grid;
+        grid-template-columns: 20% 56% auto; 
+        grid-gap: 5px;*/
+        border: 1px solid #6dd3c2;
+        /* margin-bottom: 3px; */
+    }
+
+    .el-transfer-panel {
+        width: 300px;
+    }
+
+    .el-transfer-panel__body {
+        height: 255px;
+    }
+
+    .tablemain_Tools>div {
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        /* border: 1px solid #6dd3c2; */
+    }
+
+    .RedHigh {
+        color: red;
+
+    }
+
+    .GreenLow {
+        color: rgb(113, 221, 113);
+        font-weight: bold;
+
+    }
+
+    /* body {
+         background-color: #1f1f1f; 
+    }
+    */
+
+    /* *{
+        color: #ffffff;
+    } */
+    /* .menu>span {
+        color: #ffffff;
+    } */
+
+    #app {
+        display: grid;
+        grid-template-columns: 500px auto;
+        /* grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); */
+        /* 定义列 */
+        grid-template-rows: repeat(auto-fill, minmax(100px, 1fr));
+        /* 定义行 */
+        grid-gap: 10px;
+        /* 定义行和列之间的间距 */
+        border: 1px solid #6dd3c2;
+    }
+
+    .el-table .cell {
+        word-break: keep-all !important;
+        white-space: nowrap !important;
+    }
+
+
+    .leftDiv_chart {
+        margin-top: 8px;
+    }
+
+    .leftDiv>.menu>.el-select {
+        /* margin-left: 2px; */
+        margin-right: 5px;
+    }
+
+    .leftDiv>.menu>.fct>.el-select {
+        /* margin-left: 2px; */
+        margin-right: 5px;
+    }
+</style>
+<script>
+
+    // var UrlBase = "https://localhost:5001/api" 
+    const UrlBase = (location.origin == "http://127.0.0.1:3000" ? "https://localhost:5001" : location.origin) + "/api"
+    const UrlPath = {
+        GetAllFail: UrlBase + "/FailReport/GetAllFail?Path=",
+        GetLogDirectorys: UrlBase + "/FailReport/GetLogDirectorys",
+        GetFailData: UrlBase + "/FailReport/GetFailData",
+        OpenFileDirectory: UrlBase + "/FailReport/OpenFileDirectory?Path=",
+        SetLogsPath_Server: UrlBase + "/FailReport/SetLogsPath?Path=",
+        GetGetPassReport: UrlBase + "/FailReport/GetPassReport?PathName="
+    }
+
+    const { createApp, reactive, ref, toRaw } = Vue
+
+    // reactive(message)
+
+
+    // 在需要的地方使用myElement引用 
+    const App = createApp({
+        setup() {
+            // const value1 = ref('')
+
+        },
+        data() {
+            return {
+                uploadedFiles: [], // 用于存储已上传文件信息
+                isUploading: false,
+                IsClosePanel: false,
+                SelectChannelValue: "",
+                LogDirectorys: {},
+                FailList: {},
+                TempFailList: {},
+                SelectValue: "",
+                search: '',
+                FailCount: 0,
+                GroupDatas: 0,
+                ChartFial: [],
+                datefilter: ref(''),
+                FCTList: {},
+                SelectFCTValue: "",
+                _mychart: {},
+                _Grrchart: {},
+                IsFuzzyQuery: true,
+                IsEditSeqx: false,
+                LogsPath: "",
+                IsShowFailTable: true,
+                GrrSettingsvalue: [],
+                GrrSettingsdata: [],// [{ key: 1,label: '北京',disabled: true},],
+                overview: "",
+                // 搜索框
+                // 上位机部分
+                HexToASCII: "",
+                hex: "",
+                dec: "",
+                oct: "",
+                bin: "",
+                ascii: "",
+
+                RIndex: "",
+                RAdd: "",
+                Re: "",
+                CodeIndex: "",
+                seqx: "",
+
+
+                DataSpilt: "",// 数据截取Split
+                DataSpiltCount: "",// 数据截取Count
+
+
+
+
+            }
+        },
+        methods: {
+            beforeUpload(file) {
+                this.isUploading = true;
+                // 获取文件后缀名
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                // 允许的文件类型
+                const allowedExts = ['xlsx', 'zip'];
+
+                if (!allowedExts.includes(fileExt)) {
+                    this.$message.error('仅支持上传.xlsx和.zip格式的文件，请重新选择！');
+                    return false;
+                }
+                // 文件大小校验
+                // console.error(file)
+                const fileSize = file.size / 1024 / 1024; // 转换为MB
+                if (fileSize > 20) {
+                    this.$message.error('文件大小不能超过20MB，请重新选择！');
+                    return false;
+                }
+                return true;
+            },
+            uploadSuccess(data) {
+                this.uploadedFiles = []; // 清空已上传的文件列表
+                console.error(data); // 上传成功后返回的数据 
+                this.SetLogsPath(data.filePath)
+                var _this = this;
+                const loading = ElementPlus.ElLoading.service({
+                    lock: true,
+                    text: 'Loading',
+                    background: 'rgba(0, 0, 0, 0.7)',
+                })
+                setTimeout(() => {
+                    // 点击确定后刷新页面
+                    ElementPlus.ElMessageBox({
+                        title: '上传成功！',
+                        message: data.select,
+                        type: 'success'
+                    }).then(() => {
+                        // 等待3秒后刷新页面
+                        _this.SelectValue = _this.LogsPath + "\\" + data.select;
+                        loading.close()
+                        this.isUploading = false;
+                        _this.GetAllFail(_this.SelectValue)
+                        // location.reload();
+                    }).catch(() => { });
+                }, 3000);
+                // this.$message.success('上传成功');
+            },
+            openFullScreen() {
+                const loading = ElementPlus.ElLoading.service({
+                    lock: true,
+                    text: 'Loading',
+                    background: 'rgba(0, 0, 0, 0.7)',
+                })
+                setTimeout(() => {
+                    loading.close()
+                }, 200)
+            },
+            sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            },
+            GerGrrSettingsData() {
+                var SettingsDB = []
+                // 获取数据
+                fetch(UrlPath.GetGetPassReport + this.SelectValue).then(response => {
+                    console.info(response)
+                    return response.json()   //若添加了大括号需要添加return 不然返回的是一个promise对象
+                })
+                    .then(data => {
+                        data.forEach(element => {
+                            SettingsDB.push({
+                                key: element.TestName,
+                                label: element.TestName,
+                            })
+                        })
+                        this.GrrSettingsdata = SettingsDB
+                    })
+            },
+            filterMethod(query, item) {
+                if (query) {
+                    return toRaw(item.label).toLowerCase().includes(query.toLowerCase())
+                }
+                return item;
+            },
+            GetAllFail(Path) {
+                this.openFullScreen()
+                this.GerGrrSettingsData()
+                var _this = this
+                console.dir(Path)
+                $.ajax({
+
+                    url: UrlPath.GetAllFail + Path.replace("D:\\LOG\\", ""),
+                    type: "GET",
+                    dataType: "json",
+                    success: function (data) {
+                        console.log("GetAllFail" + data);
+                        _this.FailList = data
+                        _this.overview = data.StrMes.split("\n")
+
+                        // 这个时浅拷贝 更改FailList 会影响TempFailList
+                        // _this.TempFailList = data
+                        // _this.TempFailList = toRaw(data)
+
+                        // 这个时深拷贝 更改FailList 不会影响TempFailList                     
+                        // console.dir(toRaw(data) == JSON.parse(JSON.stringify(data)))
+                        // _this.TempFailList = JSON.parse(JSON.stringify(data))
+
+                        _this.TempFailList = toRaw(data.Data)
+
+                        _this.GetChartFial()
+                    }
+                })
+
+            },
+            GetLogDirectorys(Path) {
+                var _this = this
+                $.ajax({
+                    url: UrlPath.GetLogDirectorys,
+                    type: "GET",
+                    dataType: "json",
+                    success: function (data) {
+                        // console.log(data);
+                        _this.LogDirectorys = data
+                        // console.log(refs.myElement);
+                    }
+                })
+            },
+
+            GetChartFial() {
+                var _this = this
+                // 因为vue3底层使用的是proxy进行代理的，所以我们在打印出来的是proxy代理之后的proxy对象，proxy对象里面的【【target】】才是真实的对象
+                // JSON.parse(JSON.stringify(this.FailList.GroupDatas))
+
+                //  { value: 1048, name: 'Search Engine' },
+                _this.ChartFial = [];
+                toRaw(this.FailList.GroupDatas).forEach(element => {
+                    _this.ChartFial.push({ value: element.itmeCount, name: element.itmeName })
+                });
+                // console.dir(data.length)
+
+
+
+                var myChart = _this._mychart
+                console.dir(myChart)
+
+                var option;
+
+
+                option = {
+                    tooltip: {
+                        trigger: 'item'
+                    },
+                    legend: {
+                        top: '5%',
+                        left: 'center'
+                    },
+                    series: [
+                        {
+
+                            type: 'pie',
+                            radius: ['40%', '70%'],
+                            avoidLabelOverlap: false,
+                            itemStyle: {
+                                borderRadius: 10,
+                                borderColor: '#fff',
+                                borderWidth: 2
+                            },
+                            label: {
+                                show: false,
+                                position: 'center'
+                            },
+                            emphasis: {
+                                label: {
+                                    show: true,
+                                    fontSize: 40,
+                                    fontWeight: 'bold'
+                                }
+                            },
+                            labelLine: {
+                                show: false
+                            },
+                            data: _this.ChartFial
+                        }
+                    ]
+                };
+
+                myChart.on('click', function (params) {
+                    _this.ClearText()
+                    // encodeURIComponent(params)
+                    // console.error(params.name.split(',')[0])
+                    // console.dir(params.name.replace('/t', "").trim());
+                    // 修改FailList 中的值
+                    // _this.FailList=
+                    _this.search_input(params.name.split(',')[0].trim())
+
+                });
+                option && myChart.setOption(option);
+                this.FailCount = this.FailList.Data.length
+                this.GroupDatas = _this.ChartFial.length
+
+            },
+            GetGrrChartData() {
+                var GrrObj = toRaw(this._Grrchart);
+                DataGRR = []
+                var GRRItmeShow
+                // console.dir(UrlPath.GetGetPassReport)
+                // this.ShowGRRItme = "通道4电压;NTC1"
+                // 获取输入的数据             
+                var _this = this
+                var GRRItme = toRaw(this.GrrSettingsvalue)
+                console.dir(GRRItme)
+                if (!this.SelectValue) {
+                    return
+                }
+                // 获取数据
+                fetch(UrlPath.GetGetPassReport + this.SelectValue).then(response => {
+                    console.info(response)
+                    return response.json()   //若添加了大括号需要添加return 不然返回的是一个promise对象
+                })
+                    .then(data => {
+                        legendTyep = []
+                        console.dir(data)
+                        data.forEach(element => {
+                            // 判断是否在GRRItme中
+                            if (GRRItme.indexOf(element.TestName) != -1) {
+                                console.dir(element.TestName)
+                                legendTyep.push(element.TestName)
+                                DataGRR.push({
+                                    name: element.TestName,
+                                    type: 'line',
+                                    // stack: 'Total',
+                                    // stackStrategy: 'all',
+                                    label: {
+                                        show: true,
+                                        position: 'top',
+                                    },
+
+                                    data: element.PassData
+                                })
+                            }
+
+                        });
+
+                        console.dir(DataGRR)
+
+                        option = {
+                            title: {
+                                text: 'GRR',
+                                subtext: "测量系统的重复性和复现性",
+                                // left: "center",
+                                // top: "center",
+                            },
+                            tooltip: {
+                                //trigger: 'item',
+                                trigger: 'axis',
+                                //axisPointer: {
+                                //    type: 'line'
+                                //}
+                            },
+                            legend: {
+                                data: legendTyep,
+                                // left: 'right', 
+                            },
+                            grid: {
+                                left: '3%',
+                                right: '4%',
+                                bottom: '3%',
+                                containLabel: true
+                            },
+                            toolbox: {
+                                feature: {
+                                    saveAsImage: {}
+                                }
+                            },
+                            xAxis: {
+                                type: 'category',
+                                boundaryGap: false,
+                                // data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                            },
+                            yAxis: {
+                                type: 'value'
+                            },
+                            series: DataGRR
+                        };
+                        option && GrrObj.setOption(option, true);
+                    })
+                    .catch(err => console.log(err))
+                    .finally()
+            },
+            SetLogsPath(params) {
+                if (!this.LogsPath) {
+                    this.LogsPath = params
+                }
+
+                // 获取SetLogsPath_Server
+                fetch(UrlPath.SetLogsPath_Server + params).then(res => res.json()).then(res => {
+                    console.dir(res);
+                    this.LogsPath = res.LogPath
+                })
+
+            },
+
+            search_input(params) {
+                console.dir(params);
+                if (!this.search) {
+                    this.search = params
+                }
+                //通过FailItme字段进行筛选           
+                // this.FailList.Data = toRaw(this.TempFailList.Data)
+                this.FailList.Data = this.TempFailList
+                    .filter(data => {
+                        // console.dir(data.FailItme)
+                        if (this.IsFuzzyQuery) {
+                            return (!this.search || data.FailItme.split(",")[0].replace("/t", "") === (this.search))
+                        } else {
+                            return (!this.search || data.FailItme.split(",")[0].replace("/t", "").includes(this.search))
+                        }
+                    })
+
+                this.FailCount = this.FailList.Data.length
+
+            },
+            ClearText() {
+                this.search = ""
+                // itme.target.value = ""
+                // console.dir(itme.target.value)
+            },
+            OpenFCTDir(Path) {
+                // fetch(UrlPath.OpenFileDirectory + Path)
+                //     .then(response => response.text())
+                //     .then(data => console.log(data))
+                fetch(UrlPath.OpenFileDirectory + Path)
+                    .then(response => {
+                        console.info(response)
+                        return response.text()   //若添加了大括号需要添加return 不然返回的是一个promise对象
+                    })
+                    .then(data => console.log(data))
+                    .catch(err => console.log(err))
+                    .finally()
+            },
+            DatefilterTable() {
+                let Datefilters = toRaw(this.datefilter)
+                // console.dir(Datefilters)
+                this.FailList.Data = this.TempFailList
+                    .filter(data => {
+                        // [0]  是开始日期 [1] 是结束日期
+                        return Datefilters[0].getTime() <= (new Date(data.FailDate).getTime()) && (new Date(data.FailDate).getTime()) <= Datefilters[1].getTime()
+                    })
+
+                this.FailCount = this.FailList.Data.length
+
+            },
+            formatDate(row, column) {
+                // 获取单元格数据
+                let data = row[column.property]
+                if (data == null) {
+                    return null
+                }
+                return dayjs(data).format('YYYY-MM-DD HH:mm:ss')
+            },
+            DevFun() {
+                // alert("123456")
+                //   ElementPlus.ElMessage.success('上传成功');
+                //  this.$message.success('上传成功');
+                ElementPlus.ElMessageBox({
+                    title: '提示',
+                    message: '上传成功,请拷贝路径',
+                    type: 'success'
+                })
+            }
+
+
+            ,
+            // 上位机部分
+
+            // 16进制转为其他进制
+            // 十六进制转十进制   HexToDec  
+            hexToDecimal(hex) {
+                let decimal = 0;
+                for (let i = 0; i < hex.length; i++) {
+                    decimal = decimal * 16 + parseInt(hex[i], 16);
+                }
+                return decimal;
+            },
+            // 十六进制转八进制   HexToOct
+            hexToOct(hex) {
+                let oct = 0;
+                oct = this.hexToDecimal(hex).toString(8)
+                return oct;
+            },
+
+            // 十六进制转二进制   HexToBin
+            hexToBin(hex) {
+                let bin = '';
+                for (let i = 0; i < hex.length; i++) {
+                    bin += (this.hexToDecimal(hex[i]).toString(2) + ' ');
+                }
+                return bin;
+            },
+            // 十六进制转ASCII   HexToASCII
+            hexToASCII(hex) {
+                let ascii = '';
+                for (let i = 0; i < hex.length; i += 2) {
+                    ascii += String.fromCharCode(this.hexToDecimal(hex.substr(i, 2)));
+                }
+                return ascii;
+            },
+
+
+            // 转为16进制
+
+            //二进制转十六进制 BinToHex
+            binToHex(bin) {
+                let hex = ''
+                hex = parseInt(bin, 2).toString(16) == "NaN" ? 0 : parseInt(bin, 2).toString(16)
+                return hex
+            },
+            // 八进制转十六进制 OctToHex
+            octToHex(oct) {
+                let hex = 0;
+                hex = (this.decToHex(parseInt(oct, 8)).toString(16));
+                return hex;
+            },
+            // 十进制转十六进制   DecToHex
+            decToHex(dec) {
+                let hex = '';
+                let chars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
+                while (dec != 0) {
+                    hex = chars[dec % 16] + hex;
+                    dec = Math.floor(dec / 16);
+                }
+                return hex; //'0x' +
+            },
+            //  ASCII转十六进制   ASCIIToHex
+            asciiToHex(ascii) {
+                let hex = '';
+                for (let i = 0; i < ascii.length; i++) {
+                    hex += this.decToHex(ascii.charCodeAt(i));
+                }
+                return hex;
+            },
+
+            hexToX(InHex) {
+                switch (InHex) {
+                    case "hex":
+                        if (this.hex.trim() == "")
+                            return ""
+                        this.hex = this.hex.trim().replace(/[^a-fA-F0-9]/g, "")
+                        this.dec = this.hexToDecimal(this.hex.trim())
+                        this.oct = this.hexToOct(this.hex.trim())
+                        this.bin = this.hexToBin(this.hex.trim())
+                        this.ascii = this.hexToASCII(this.hex.trim())
+                        break;
+                    case "dec":
+                        if (this.dec.trim() == "")
+                            return ""
+                        this.dec = this.dec.trim().replace(/[^0-9]/g, "")
+                        this.hex = this.decToHex(this.dec.trim())
+
+                        break;
+                    case "oct":
+                        if (this.oct.trim() == "")
+                            return ""
+                        this.oct = this.oct.trim().replace(/[^0-7]/g, "")
+                        this.hex = this.octToHex(this.oct.trim())
+                        break;
+                    case "bin":
+                        if (this.bin.trim() == "")
+                            return ""
+                        this.bin = this.bin.trim().replace(/[^0-1]/g, "")
+                        this.hex = this.binToHex(this.bin.trim())
+                        break;
+                    case "ascii":
+                        if (this.ascii.trim() == "")
+                            return ""
+                        this.hex = this.asciiToHex(this.ascii.trim())
+                        break;
+                }
+                if (InHex != "hex") {
+                    this.dec = this.hexToDecimal(this.hex.trim())
+                    this.oct = this.hexToOct(this.hex.trim())
+                    this.bin = this.hexToBin(this.hex.trim())
+                    this.ascii = this.hexToASCII(this.hex.trim())
+                }
+
+
+            },
+            // 计算CRC16   FF 00  
+            StrTOSeqx() {
+                let RIndex = this.RIndex; //继电器
+                let RAdd = this.RAdd; // 继电器地址
+                let Re = this.Re;  // 具体测试项目
+                let CodeIndex = this.CodeIndex; // 测试项目需要传入的Code
+                this.seqx = `    
+     <Item RunModel="Normal" Save="True" Show="True" Count="1" Describe="">
+        <StepName>闭合继电器`+ RIndex + `</StepName>
+        <StepType>Action</StepType>
+        <CompareType>
+        </CompareType>
+        <LowLimit>
+        </LowLimit>
+        <HihgLimit>
+        </HihgLimit>
+        <Units>
+        </Units>
+        <DllPath>stationGlobal.Relay</DllPath>
+        <DllClass>JN_Relay_And_ZS_DMM.Drive</DllClass>
+        <MethodName>Boolean PilotRelay(Int32, System.String, Boolean, System.String ByRef, Int32 ByRef, Int32)</MethodName>
+        <Result>stationGlobal.BooltTestResult#System.Boolean</Result>
+        <InputParameter>`+ RAdd + `#System.Int32;` + RIndex + `#System.String;True#System.Boolean;stationGlobal.Value#System.String&amp;;stationGlobal.Error#System.Int32&amp;;100#System.Int32</InputParameter>
+        <OutputParameter>
+        </OutputParameter>
+      </Item>
+      <Item RunModel="Normal" Save="True" Show="True" Count="1" Describe="">
+        <StepName>`+ Re + `开</StepName>
+        <StepType>Action</StepType>
+        <CompareType>
+        </CompareType>
+        <LowLimit>
+        </LowLimit>
+        <HihgLimit>
+        </HihgLimit>
+        <Units>
+        </Units>
+        <DllPath>stationGlobal.DUT1</DllPath>
+        <DllClass>UUTSerialPort.UUTDrive</DllClass>
+        <MethodName>System.String QueryJianPai(Int32, Int32, System.String, System.String, Int32, Int32)</MethodName>
+        <Result>stationGlobal.StringTestResult#System.String</Result>
+        <InputParameter>`+ CodeIndex + `#System.Int32;3#System.Int32;#System.String;#System.String;100#System.Int32;1#System.Int32</InputParameter>
+        <OutputParameter>
+        </OutputParameter>
+      </Item>
+      <Item RunModel="Normal" Save="True" Show="True" Count="1" Describe="">
+        <StepName>断开继电器`+ RIndex + `</StepName>
+        <StepType>Action</StepType>
+        <CompareType>
+        </CompareType>
+        <LowLimit>
+        </LowLimit>
+        <HihgLimit>
+        </HihgLimit>
+        <Units>
+        </Units>
+        <DllPath>stationGlobal.Relay</DllPath>
+        <DllClass>JN_Relay_And_ZS_DMM.Drive</DllClass>
+        <MethodName>Boolean PilotRelay(Int32, System.String, Boolean, System.String ByRef, Int32 ByRef, Int32)</MethodName>
+        <Result>stationGlobal.BooltTestResult#System.Boolean</Result>
+        <InputParameter>`+ RAdd + `#System.Int32;` + RIndex + `#System.String;False#System.Boolean;stationGlobal.Value#System.String&amp;;stationGlobal.Error#System.Int32&amp;;100#System.Int32</InputParameter>
+        <OutputParameter>
+        </OutputParameter>
+      </Item>
+      <Item RunModel="Normal" Save="True" Show="True" Count="1" Describe="">
+        <StepName>`+ Re + `关</StepName>
+        <StepType>Action</StepType>
+        <CompareType>
+        </CompareType>
+        <LowLimit>
+        </LowLimit>
+        <HihgLimit>
+        </HihgLimit>
+        <Units>
+        </Units>
+        <DllPath>stationGlobal.DUT1</DllPath>
+        <DllClass>UUTSerialPort.UUTDrive</DllClass>
+        <MethodName>System.String QueryJianPai(Int32, Int32, System.String, System.String, Int32, Int32)</MethodName>
+        <Result>stationGlobal.StringTestResult#System.String</Result>
+        <InputParameter>`+ CodeIndex + `#System.Int32;3#System.Int32;#System.String;#System.String;100#System.Int32;0#System.Int32</InputParameter>
+        <OutputParameter>
+        </OutputParameter>
+      </Item>`
+
+            },
+            // 显示字节总数 
+            SetDataSpiltCount() {
+                this.DataSpiltCount = this.DataSpilt.trim().split(" ").length
+            }
+
+        },
+
+        // 初始化后调用Get方法
+        created() {
+            if (this.SelectValue != null && this.SelectValue != "") {
+                this.GetAllFail(this.SelectValue)
+            }
+            this.GetLogDirectorys()
+            this.SetLogsPath()
+
+            var _this = this
+            $.ajax({
+                url: UrlPath.GetFailData + "",
+                type: "GET",
+                dataType: "json",
+                success: function (data) {
+                    // console.log(data);
+                    _this.FCTList = data
+                    // console.log(refs.myElement);
+                }
+            })
+            new ClipboardJS('.btn');
+        },
+        mounted() {
+            this._mychart = echarts.init(this.$refs.mychart);
+            this._Grrchart = echarts.init(this.$refs.Grr);
+
+
+        },
+        watch() {
+            console.dir("watch");
+            // isDark,
+            // () => {
+            //     font.color = isDark.value
+            //         ? 'rgba(255, 255, 255, .15)'
+            //         : 'rgba(0, 0, 0, .15)'
+            // }
+        }
+
+
+
+    })
+    //   注册所有图标组件 (这是独立的操作)
+    if (typeof ElementPlusIconsVue !== 'undefined') {
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            App.component(key, component);
+        }
+        // console.log("图标已成功注册！");
+    }
+    App.config.globalProperties.$message = ElementPlus.ElMessage; // 全局注册
+
+    App.use(ElementPlus, {
+        locale: ElementPlusLocaleZhCn,
+    }).mount('#app')
+
+    // "2023-11-11T17:03:29.6729195+08:00" 转换为 yyyy-MM-dd HH:mm:ss 格式
+    // console.dir(dayjs("2023-11-11T17:03:29.6729195+08:00").format('YYYY-MM-DD HH:mm:ss'))
+
+</script>
+
+
+
+</html>
