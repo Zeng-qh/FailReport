@@ -119,7 +119,7 @@ namespace FailReport.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpGet]
-        public string GetAllFail(string Path= "C:\\Logs_Uploads\\a")
+        public string GetAllFail(string Path = "C:\\Logs_Uploads\\a")
         {
             return GetData(Path);
         }
@@ -364,17 +364,26 @@ namespace FailReport.Controllers
             }
 
             // 检查文件类型
-            var allowedExtensions = new[] { ".xlsx" };
+            var allowedExtensions = new[] { ".xlsx", ".zip" };
             var fileExtension = System.IO.Path.GetExtension(file.FileName).ToLower();
             if (!allowedExtensions.Contains(fileExtension))
             {
-                return BadRequest("只允许上传Excel文件(.xlsx)");
+                return BadRequest(new
+                {
+                    message = "只允许上传Excel文件(.xlsx)或压缩包(.zip)"
+                });
             }
 
             // 检查文件大小（限制为20MB）
             if (file.Length > 20 * 1024 * 1024)
             {
-                return BadRequest("文件大小不能超过20MB");
+
+                return Ok(new
+                {
+                    message = "文件大小超过限制（20MB）",
+                    fileName = file.FileName,
+                    fileSize = file.Length / 1024 + " KB"
+                });
             }
 
             // 调用服务上传文件
@@ -383,8 +392,19 @@ namespace FailReport.Controllers
             if (result.Success)
             {
                 Stopwatch Ps = Stopwatch.StartNew();
-                await _uploadService.ReadExcelData2Txt(result.FilePath);
-                Debug.WriteLine($"读取Excel数据耗时: {Ps.ElapsedMilliseconds} ms");
+                // 若是Excel文件，则读取数据，zip文件则解压缩 
+                if (result.FilePath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+                {
+                    await _uploadService.ReadExcelData2Txt(result.FilePath);
+                    Debug.WriteLine($"读取Excel数据耗时: {Ps.ElapsedMilliseconds} ms");
+                }
+                else
+                {
+                    // 如果是zip文件，则解压缩
+                    await _uploadService.UnZipFile(result.FilePath);
+                    Debug.WriteLine($"解压缩文件耗时: {Ps.ElapsedMilliseconds} ms");
+                }
+
                 return Ok(new
                 {
                     message = "文件上传成功",

@@ -3,6 +3,7 @@ using NPOI.SS.Formula.Functions;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 using System.Collections.Generic;
+using System.IO.Compression;
 using System.Numerics;
 
 namespace FailReport.Upload
@@ -86,14 +87,16 @@ namespace FailReport.Upload
                 // 构建列名到索引的映射
                 for (int col = 0; col < headerRow.LastCellNum; col++)
                 {
-                    ICell cell = headerRow.GetCell(col);
+                    ICell? cell = headerRow.GetCell(col);
                     if (cell != null)
                     {
-                        headerDict[col] = cell is null ?"":cell.ToString();
+                        //headerDict[col] = cell.ToString();
+                        //headerDict[col] = cell.ToString()!; 
+                        headerDict[col] = cell.ToString() ?? "";
                     }
                 }
 
-          
+
                 string serialNumber = string.Empty;
                 string result = string.Empty;
 
@@ -129,7 +132,7 @@ TestTime: " + testTime + @"
 TestResult: " + result + @"
 Step	Item	Range	TestValue	Result
 ";
-                  
+
                     //Console.WriteLine($"行 {rowNum + 1}: SerialNumber = {serialNumber}");
                     //Console.WriteLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~``");
                     string TpTxt = string.Empty;
@@ -137,7 +140,7 @@ Step	Item	Range	TestValue	Result
                     // 获取测试 Step 
                     foreach (var header in headerDict)
                     {
-                        
+
                         if (header.Value.Contains("Step"))
                         {
                             string stepValue = GetCellValue(row, headerDict, header.Value);
@@ -154,7 +157,7 @@ Step	Item	Range	TestValue	Result
                             // Console.WriteLine($"{header.Value}: {stepValue}");
                             Index++;
                         }
-                      
+
                     }
                     string TxtName = LogsPath + "\\" + serialNumber + "___" + DateTime.Now.ToString("yyyyMMddhhmmssffff") + "___" + result + ".txt";
                     //TxtName.Dump();
@@ -183,6 +186,33 @@ Step	Item	Range	TestValue	Result
             }
             return string.Empty;
         }
+
+        public Task UnZipFile(string filePath)
+        {
+            try
+            {
+                string extractPath = Path.Combine(Path.GetDirectoryName(filePath), Path.GetFileNameWithoutExtension(filePath));
+                if (!Directory.Exists(extractPath))
+                {
+                    Directory.CreateDirectory(extractPath);
+                }
+                using (var archive = System.IO.Compression.ZipFile.OpenRead(filePath))
+                {
+                    foreach (var entry in archive.Entries)
+                    {
+                        string destinationPath = Path.Combine(extractPath, entry.FullName);
+                        if (string.IsNullOrEmpty(entry.Name)) continue; // Skip directories
+                        entry.ExtractToFile(destinationPath, true);
+                    }
+                }
+                return Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"解压文件失败: {ex.Message}");
+                throw;
+            }
+        }
     }
     public interface IExcelUploadService
     {
@@ -193,6 +223,7 @@ Step	Item	Range	TestValue	Result
         /// <returns>包含上传结果的对象</returns>
         Task<FileUploadResult> SaveExcelFileAsync(IFormFile file);
         Task<string> ReadExcelData2Txt(string filePath);
+        Task UnZipFile(string filePath);
     }
 
     /// <summary>

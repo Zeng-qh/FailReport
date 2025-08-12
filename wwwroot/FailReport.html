@@ -179,7 +179,7 @@
                         </div>
                         <template #tip>
                             <div class="el-upload__tip">
-                                小于20M的Excel文件
+                                小于20M的Excel文件、或zip文件(zip文件不要有文件夹即解压就是对应的测试日志)
                             </div>
                         </template>
                     </el-upload>
@@ -457,6 +457,7 @@
 
                 if (!allowedExts.includes(fileExt)) {
                     this.$message.error('仅支持上传.xlsx和.zip格式的文件，请重新选择！');
+                    this.isUploading = false;
                     return false;
                 }
                 // 文件大小校验
@@ -464,8 +465,10 @@
                 const fileSize = file.size / 1024 / 1024; // 转换为MB
                 if (fileSize > 20) {
                     this.$message.error('文件大小不能超过20MB，请重新选择！');
+                    this.isUploading = false;
                     return false;
                 }
+                
                 return true;
             },
             uploadSuccess(data) {
