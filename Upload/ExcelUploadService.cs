@@ -129,26 +129,32 @@ TestTime: " + testTime + @"
 TestResult: " + result + @"
 Step	Item	Range	TestValue	Result
 ";
-                    int Index = 1;
+                  
                     //Console.WriteLine($"行 {rowNum + 1}: SerialNumber = {serialNumber}");
                     //Console.WriteLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~``");
                     string TpTxt = string.Empty;
+                    int Index = 1;
                     // 获取测试 Step 
                     foreach (var header in headerDict)
                     {
+                        
                         if (header.Value.Contains("Step"))
                         {
                             string stepValue = GetCellValue(row, headerDict, header.Value);
                             //char[] Ch = stepValue.ToArray();
-                            //Ch.Dump();
-                            //if (stepValue.Split('\u200B').Count() != 6)
-                            //{
-                            //	stepValue.Split('\u200B').Dump();// 必须包含\u200B count大于=6
-                            //}
-                            TpTxt += $"{Index}\t{(stepValue.Replace('\u200B', '\t'))}\r\n";
+                            //Ch.Dump();                       
+                            //TpTxt += $"{Index}\t{(stepValue.Replace('\u200B', '\t'))}\r\n";
+                            string[] StepList = stepValue.Split('\u200B');
+                            if (StepList.Length < 6)
+                            {
+                                //Console.WriteLine($"行 {rowNum + 1}: SerialNumber = {serialNumber} 的 Step 数据不完整，跳过该行。");
+                                continue;
+                            }
+                            TpTxt += $"{Index}\t{StepList[0]}\t{StepList[1]}~{StepList[2]}\t{StepList[3]}\t{StepList[5]}\r\n";
                             // Console.WriteLine($"{header.Value}: {stepValue}");
+                            Index++;
                         }
-                        Index++;
+                      
                     }
                     string TxtName = LogsPath + "\\" + serialNumber + "___" + DateTime.Now.ToString("yyyyMMddhhmmssffff") + "___" + result + ".txt";
                     //TxtName.Dump();
