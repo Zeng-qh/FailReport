@@ -191,7 +191,7 @@ Step	Item	Range	TestValue	Result
         {
             try
             {
-                string extractPath = Path.Combine(Path.GetDirectoryName(filePath), Path.GetFileNameWithoutExtension(filePath));
+                string extractPath = Path.Combine(Path.GetDirectoryName(filePath)!, Path.GetFileNameWithoutExtension(filePath));
                 if (!Directory.Exists(extractPath))
                 {
                     Directory.CreateDirectory(extractPath);

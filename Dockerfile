@@ -11,10 +11,16 @@ WORKDIR /src
 # 复制剩余源代码（项目文件已在base阶段复制，这里避免重复）
 COPY . .
 # 显式构建后再发布（即使publish隐含build，显式指定更稳妥）
+# 先构建项目
 RUN dotnet build "FailReport.csproj" -c Release --no-restore \
-    && dotnet publish "FailReport.csproj" -c Release -o /app/publish --no-build \
+    # 验证构建输出
+    && echo "构建产物验证：" \
+    && ls -la /src/bin/Release/net9.0/ \
+    # 发布项目（不使用--no-build，让publish确保所有必要文件都被包含）
+    && dotnet publish "FailReport.csproj" -c Release -o /app/publish \
+    # 验证发布输出
     && echo "发布产物验证：" \
-    && ls -la /app/publish  # 调试：确认关键文件（如.deps.json、.runtimeconfig.json、.dll）存在
+    && ls -la /app/publish
 
 # 运行阶段（精简镜像，仅保留运行时依赖）
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
