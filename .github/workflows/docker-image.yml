@@ -15,7 +15,7 @@ env:
   # 配置你的 DockerHub 仓库信息
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
   DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-  DOCKER_IMG_NAME: "你的用户名/镜像名称"  # 例如：username/my-app
+  DOCKER_IMG_NAME: "adminpc/FailReport"  # 例如：username/my-app
   
   # GHCR 仓库信息（通常无需修改）
   GHCR_USERNAME: ${{ github.repository_owner }}
