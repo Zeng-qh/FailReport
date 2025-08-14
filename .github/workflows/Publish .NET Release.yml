@@ -41,7 +41,7 @@ jobs:
       id: get_version
       run: |
         # 从项目文件中提取版本号（假设是.csproj文件）
-        VERSION=$(grep -oP '<Version>\K[^<]+' src/**/*.csproj | head -n 1)
+        VERSION=$(grep -oP '<Version>\K[^<]+' *.csproj | head -n 1)
         echo "version=$VERSION" >> $GITHUB_OUTPUT
     
     - name: Zip publish artifacts
