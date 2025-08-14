@@ -40,9 +40,18 @@ jobs:
     - name: Get version from project
       id: get_version
       run: |
-        # 从项目文件中提取版本号（假设是.csproj文件）
-        VERSION=$(grep -oP '<Version>\K[^<]+' *.csproj | head -n 1)
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
+          TargetVersion=""
+          # 如果是 Release 触发，使用 Release 标签作为版本号
+          if [ "${{ github.event.release.tag_name }}" ] ; then
+            TargetVersion=${{ github.event.release.tag_name }}
+          else
+            # 否则从项目文件中提取版本号（根据实际情况调整路径）
+            TargetVersion=$(grep -oP '(?<=<Version>).*?(?=<\/Version>)' ./FailReport.csproj)
+          fi
+          # 移除可能的前缀 'v'
+          TargetVersion=${TargetVersion#v}
+          echo "TargetVersion: $TargetVersion"
+          echo "TargetVersion=$TargetVersion" >> $GITHUB_OUTPUT
     
     - name: Zip publish artifacts
       run: |
