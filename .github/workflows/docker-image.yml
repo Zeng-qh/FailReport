@@ -91,6 +91,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile  # 替换为你的实际路径（例如 ./src/Dockerfile）
           platforms: linux/amd64,linux/arm64  # 构建多架构镜像
           push: true
           tags: |
