@@ -15,7 +15,7 @@ env:
   # 配置你的 DockerHub 仓库信息
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
   DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-  DOCKER_IMG_NAME: "adminpc/FailReport"  # 例如：username/my-app
+  DOCKER_IMG_NAME: "adminpc/failreport"  # 例如：username/my-app
   
   # GHCR 仓库信息（通常无需修改）
   GHCR_USERNAME: ${{ github.repository_owner }}
@@ -38,7 +38,7 @@ jobs:
             TargetVersion=${{ github.event.release.tag_name }}
           else
             # 否则从项目文件中提取版本号（根据实际情况调整路径）
-            TargetVersion=$(grep -oP '(?<=<Version>).*?(?=<\/Version>)' ./failreport.csproj)
+            TargetVersion=$(grep -oP '(?<=<Version>).*?(?=<\/Version>)' ./FailReport.csproj)
           fi
           # 移除可能的前缀 'v'
           TargetVersion=${TargetVersion#v}
