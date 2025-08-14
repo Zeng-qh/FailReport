@@ -38,7 +38,7 @@ jobs:
             TargetVersion=${{ github.event.release.tag_name }}
           else
             # 否则从项目文件中提取版本号（根据实际情况调整路径）
-            TargetVersion=$(grep -oP '(?<=<Version>).*?(?=<\/Version>)' ./common.props)
+            TargetVersion=$(grep -oP '(?<=<Version>).*?(?=<\/Version>)' ./FailReport.csproj)
           fi
           # 移除可能的前缀 'v'
           TargetVersion=${TargetVersion#v}
