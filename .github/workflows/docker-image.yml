@@ -12,19 +12,24 @@ on:
     types: [created]
 
 env:
-  # 配置你的 DockerHub 仓库信息
+  # DockerHub 仓库信息
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
   DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-  DOCKER_IMG_NAME: "adminpc/failreport"  # 例如：username/my-app
+  DOCKER_IMG_NAME: "adminpc/failreport"
   
-  # GHCR 仓库信息（通常无需修改）
+  # GHCR 仓库信息
   GHCR_USERNAME: ${{ github.repository_owner }}
   GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-  GHC_IMG_NAME: "ghcr.io/${{ github.repository_owner }}/failreport"  # 例如：ghcr.io/username/my-app
+  GHC_IMG_NAME: "ghcr.io/${{ github.repository_owner }}/failreport"
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    # 关键：添加GHCR推送所需的权限
+    permissions:
+      contents: read  # 读取代码权限
+      packages: write  # 推送镜像到GHCR的权限
+      
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -33,19 +38,17 @@ jobs:
         id: getTargetVersion
         run: |
           TargetVersion=""
-          # 如果是 Release 触发，使用 Release 标签作为版本号
           if [ "${{ github.event.release.tag_name }}" ] ; then
             TargetVersion=${{ github.event.release.tag_name }}
           else
-            # 否则从项目文件中提取版本号（根据实际情况调整路径）
+            # 从项目文件提取版本号（确保路径正确）
             TargetVersion=$(grep -oP '(?<=<Version>).*?(?=<\/Version>)' ./FailReport.csproj)
           fi
-          # 移除可能的前缀 'v'
-          TargetVersion=${TargetVersion#v}
+          TargetVersion=${TargetVersion#v}  # 移除可能的前缀v
           echo "TargetVersion: $TargetVersion"
           echo "TargetVersion=$TargetVersion" >> $GITHUB_OUTPUT
 
-      - name: 设置 QEMU（支持多架构构建）
+      - name: 设置 QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: 设置 Docker Buildx
@@ -67,21 +70,20 @@ jobs:
       - name: 生成镜像标签
         id: tags
         run: |
-          targetVersion="${{ steps.getTargetVersion.outputs.TargetVersion }}"
-          
+          targetVersion="${{ steps.getTargetVersion.outputs.TargetVersion }}"          
           # 版本化标签
           dockerTagWithVersion="${{ env.DOCKER_IMG_NAME }}:$targetVersion"
           ghcrTagWithVersion="${{ env.GHC_IMG_NAME }}:$targetVersion"
           
-          # Latest 标签（根据条件生成）
+          # Latest 标签
           dockerTagWithLatest=""
           ghcrTagWithLatest=""
-          if [ "${{ github.event.inputs.autoWithLatestTag }}" == "true" ] || [ -n "${{ github.event.release.created_at }}" ]; then
+          # 修复条件判断（避免空值导致的语法错误）
+          if [ "${{ github.event.inputs.autoWithLatestTag }}" = "true" ] || [ -n "${{ github.event.release.created_at || '' }}" ]; then
             dockerTagWithLatest="${{ env.DOCKER_IMG_NAME }}:latest"
             ghcrTagWithLatest="${{ env.GHC_IMG_NAME }}:latest"
           fi
           
-          # 输出标签信息
           echo "dockerTagWithVersion=$dockerTagWithVersion" >> $GITHUB_OUTPUT
           echo "ghcrTagWithVersion=$ghcrTagWithVersion" >> $GITHUB_OUTPUT
           echo "dockerTagWithLatest=$dockerTagWithLatest" >> $GITHUB_OUTPUT
@@ -91,15 +93,13 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile  # 替换为你的实际路径（例如 ./src/Dockerfile）
-          platforms: linux/amd64,linux/arm64  # 构建多架构镜像
+          file: ./Dockerfile  # 确认Dockerfile在根目录
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ steps.tags.outputs.dockerTagWithVersion }}
             ${{ steps.tags.outputs.ghcrTagWithVersion }}
             ${{ steps.tags.outputs.dockerTagWithLatest }}
             ${{ steps.tags.outputs.ghcrTagWithLatest }}
-          # 可选：启用缓存加速构建
           cache-from: type=gha
           cache-to: type=gha,mode=max
-    
