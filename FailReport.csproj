@@ -2,9 +2,12 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
+    <!-- 确保以下配置存在，强制生成runtimeconfig.json -->
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <SelfContained>false</SelfContained> <!-- 明确指定为框架依赖模式 -->
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <OutputType>Library</OutputType>
+    <OutputType>Exe</OutputType>
     <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
