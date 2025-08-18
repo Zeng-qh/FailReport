@@ -15,7 +15,7 @@ RUN dotnet build "FailReport.csproj" -c Release --no-restore \
     && dotnet publish "FailReport.csproj" -c Release -o /app/publish \
        --no-build --no-restore \
     && echo "发布产物验证：" \
-    && ls -la /app/publish
+    && ls -la /app/publish \
     && rm -rf /src/obj /src/bin  # 清理构建残留
 
 # 运行阶段（精简镜像，仅保留运行时依赖）
