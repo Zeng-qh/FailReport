@@ -1,5 +1,6 @@
-﻿using FailReport.Upload;
+using FailReport.Upload;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Ports;
@@ -17,29 +18,29 @@ namespace FailReport.Controllers
     public class FailReportController : ControllerBase
     {
         private readonly IExcelUploadService _uploadService;
+        const string VerifyNumer = @"^(\-|\+)?\d+(\.\d+)?$";
 
+        private SerialPort? serialPort;
+
+        //Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LOG");
+        public static string LogPath;
+        public static string FCTPath;
+        public static string DefaultPathName;
         // 构造函数注入文件上传服务
         public FailReportController(IExcelUploadService uploadService)
         {
             _uploadService = uploadService;
         }
 
-        static string LogPath = @"D:\LOG\";
-        const string FCTPath = @"D:\";
-        const string ImgPath = @"D:\IMG\";
-        const string VerifyNumer = @"^(\-|\+)?\d+(\.\d+)?$";
-
-        private SerialPort serialPort;
-
-
         [HttpGet]
-        public string GetPassReport(string PathName = "C:\\Logs_Uploads\\a")
+        public string GetPassReport(string PathName = "")
         {
             List<PassReport> result = new List<PassReport>();
             string FileNameCont = "Pass";
             // 获取全部Pass 的文件
             // 获取指定目录所有的log  csv 的或 txt
-            string LogPathDir = PathName;//Path.Combine((LogPath == "D:\\LOG" ? LogPath : ""), PathName);
+            // 如果未提供路径，则使用默认路径
+            string LogPathDir = PathName ?? DefaultPathName;
 
             // 判断是否存在文件夹
             if (!Directory.Exists(LogPathDir))
@@ -119,7 +120,7 @@ namespace FailReport.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpGet]
-        public string GetAllFail(string Path = "C:\\Logs_Uploads\\a")
+        public string GetAllFail(string Path)
         {
             return GetData(Path);
         }
@@ -216,29 +217,42 @@ namespace FailReport.Controllers
         private string GetData(string PathName)
         {
             string searchString = "Fail";
+            string _Pass = "Pass";
+            string _Fail = "Fail";
             FailList _failList = new FailList();
             _failList.Data = new List<FailData>();
+            _failList.PassReport = new List<PassReport>();
             // 获取指定目录所有的log  csv 的或 txt
             string[] LogAll = Directory.GetFileSystemEntries(PathName);
 
 
-            string[] FailS = LogAll.Where(m => m.Contains(searchString)).ToArray();
+            string[] FailS = LogAll.Where(m => m.Contains(_Fail)).ToArray();
+            string[] PassS = LogAll.Where(m => m.Contains(_Pass)).ToArray();
 
-            if (FailS.Count() > 0)
+            if (LogAll.Count() > 0)
             {
-                string FileType = Path.GetExtension(FailS[0].ToString()); //.txt
+                string FileType = Path.GetExtension(LogAll[0].ToString()); //.txt
                 try
                 {
-                    foreach (string FailPath in FailS)
+                    foreach (string FailPath in LogAll)
                     {
+                        string TpStr = "";
                         string[] fileLines = System.IO.File.ReadAllLines(FailPath, Encoding.UTF8); // 读取文件内容
+                        if (!FailPath.Contains(_Fail) && FailPath.Contains(_Pass))
+                        {
+                            TpStr = "Pass";
+                        }
+                        else
+                        {
+                            TpStr = "Fail";
+                        }
+
 
                         foreach (string line in fileLines)
                         {
                             //    要查找的字符串
-                            if (line.Contains(searchString) && (!line.Contains("TestResult")))
+                            if (line.Contains(TpStr) && (!line.Contains("TestResult")))
                             {
-
                                 //Console.WriteLine("Fail:\t" + line + "\t Path: \t" + FailPath);
 
                                 bool? TempHigh = null;
@@ -289,18 +303,48 @@ namespace FailReport.Controllers
 
                                         TempHigh = TempHighs.Where(m => m == true).Count() >= 1;
                                     }
-
                                 }
 
-                                _failList.Data.Add(new FailData()
+                                if (TpStr == "Fail")
                                 {
-                                    FailDate = System.IO.File.GetLastWriteTime(FailPath),
-                                    // 这里根据后缀名判断是否要将table 替换为逗号
-                                    FailItme = System.IO.Path.GetExtension(FailPath).ToLower() == ".csv" ? line : line.Replace("\t", ","),
-                                    FailPath = FailPath,
-                                    // AC采集卡IN3, 216, 235, 211.83, V, Fail, 210, L<=x<=H
-                                    IsHigh = TempHigh,
-                                });
+                                    _failList.Data.Add(new FailData()
+                                    {
+                                        FailDate = System.IO.File.GetLastWriteTime(FailPath),
+                                        // 这里根据后缀名判断是否要将table 替换为逗号
+                                        FailItme = System.IO.Path.GetExtension(FailPath).ToLower() == ".csv" ? line : line.Replace("\t", ","),
+                                        FailPath = FailPath,
+                                        // AC采集卡IN3, 216, 235, 211.83, V, Fail, 210, L<=x<=H
+                                        IsHigh = TempHigh,
+                                    });
+                                }
+                                else
+                                {
+                                    string TestName = $"{line.Split("\t")[0]}_{line.Split("\t")[1]}";
+                                    string TestValues = (line.Split("\t")[3]).Replace(",", "").Trim();
+                                    bool IsV = System.Text.RegularExpressions.Regex.IsMatch(TestValues, VerifyNumer);
+                                    if (IsV)
+                                    {
+
+                                        PassReport? report = _failList.PassReport.FirstOrDefault<PassReport>(M => M.TestName == TestName);
+
+                                        if (report is null)
+                                        {
+
+                                            PassReport passReport = new PassReport()
+                                            {
+                                                TestName = TestName,
+                                                PassData = new List<double> { double.Parse(TestValues) }
+                                            };
+
+                                            _failList.PassReport.Add(passReport);
+                                        }
+                                        else
+                                        {
+                                            report.PassData.Add(double.Parse(TestValues));
+                                        }
+
+                                    }
+                                }
                             }
                         }
                     }
@@ -318,8 +362,14 @@ namespace FailReport.Controllers
 
 
             //failList.Data = Data;
-            _failList.StrMes = "Passed:\t" + LogAll.Count() + "\nFailing:\t"
-                + FailS.Count() + "\nSuccessRate:\t" + Math.Round((1 - (1.0 * FailS.Count() / LogAll.Count())) * 100, 2) + "%";
+
+            // _failList.StrMes = "Passed:\t" + LogAll.Count() + "\nFailing:\t"
+            //     + FailS.Count() + "\nSuccessRate:\t" + Math.Round((1 - (1.0 * FailS.Count() / LogAll.Count())) * 100, 2) + "%";
+            // _failList.FailCount = _failList.Data.Count;
+
+            _failList.StrMes = "Passed:\t" + PassS.Count()
+                + "\nFailing:\t" + FailS.Count()
+                + "\nSuccessRate:\t" + Math.Round((1 - (1.0 * FailS.Count() / LogAll.Count())) * 100, 2) + "%";
             _failList.FailCount = _failList.Data.Count;
             _failList.GroupDatas = new List<GroupData>();
 
@@ -452,6 +502,8 @@ namespace FailReport.Controllers
 
         public string StrMes { get; set; }
         public List<GroupData> GroupDatas { get; set; }
+        public List<PassReport> PassReport { get; set; }
+
 
     }
 

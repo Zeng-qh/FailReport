@@ -1,10 +1,13 @@
-﻿using NPOI.SS.Formula;
+﻿using FailReport.Controllers;
+using NPOI.OpenXmlFormats.Vml;
+using NPOI.SS.Formula;
 using NPOI.SS.Formula.Functions;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 using System.Collections.Generic;
 using System.IO.Compression;
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace FailReport.Upload
 {
@@ -12,17 +15,35 @@ namespace FailReport.Upload
     {
 
 
-        // 配置文件保存路径 
-        private string _uploadPath = Path.Combine("C:\\", "Logs_Uploads");
-
+        private string _uploadPath;
 
         public ExcelUploadService()
         {
-            // 确保上传目录存在
+            // 使用配置文件或环境变量来设置路径 - 跨平台兼容
+            // 在Windows上会使用C:\Logs_Uploads，在Linux上会使用/home/user/Logs_Uploads
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                FailReportController.LogPath = "/home/user/Logs_Uploads";
+                FailReportController.FCTPath = "/home/user/Logs_FCT";
+                FailReportController.DefaultPathName = "/home/user/Logs_Uploads";
+            }
+            else
+            {
+                FailReportController.LogPath = @"C:\Logs_Uploads";
+                FailReportController.FCTPath = @"C:\Logs_FCT";
+                FailReportController.DefaultPathName = @"C:\Logs_Uploads";
+            }
+            _uploadPath = FailReportController.LogPath;
+            // 若文件夹不存在，则创建
             if (!Directory.Exists(_uploadPath))
             {
                 Directory.CreateDirectory(_uploadPath);
             }
+            if (!Directory.Exists(FailReportController.FCTPath))
+            {
+                Directory.CreateDirectory(FailReportController.FCTPath);
+            }
+
         }
 
         public async Task<FileUploadResult> SaveExcelFileAsync(IFormFile file)
@@ -191,7 +212,7 @@ Step	Item	Range	TestValue	Result
         {
             try
             {
-                string extractPath = Path.Combine(Path.GetDirectoryName(filePath), Path.GetFileNameWithoutExtension(filePath));
+                string extractPath = Path.Combine(Path.GetDirectoryName(filePath)!, Path.GetFileNameWithoutExtension(filePath));
                 if (!Directory.Exists(extractPath))
                 {
                     Directory.CreateDirectory(extractPath);
