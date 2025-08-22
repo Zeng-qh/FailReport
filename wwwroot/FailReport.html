@@ -170,7 +170,8 @@
                 </div>
                 <div>
 
-                    <el-upload drag limit="1" accept="*.xlsx;*.zip" :on-success="uploadSuccess" :disabled="isUploading"
+                    <el-upload style="height: 180px;" drag limit="1"
+                        accept="*.xlsx;*.zip" :on-success="uploadSuccess" :disabled="isUploading"
                         :before-upload="beforeUpload" action="/api/FailReport/UploadExcel/upload" :multiple="false"
                         :file-list="uploadedFiles">
                         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
@@ -186,9 +187,9 @@
                 </div>
             </div>
 
-            <div class="leftDiv_chart">
+            <div class="leftDiv_chart" style="margin-top: 40px;">
                 <!-- 显示图表在右侧 -->
-                <div ref="mychart" style=" width: 100%; height: 420px;">
+                <div ref="mychart" style=" width: 100%; height: 320px;">
 
                 </div>
             </div>
@@ -241,7 +242,7 @@
             <div class="GrrSettings">
                 <el-transfer v-show="IsShowFailTable" v-model="GrrSettingsvalue" :titles="['不显示的GRR', '显示的GRR']"
                     @change="GetGrrChartData()" filterable :filter-method="filterMethod" filter-placeholder="查询"
-                    :data="GrrSettingsdata" />
+                    :data="GrrSettingsdata" :props="{ key: 'TestName', label: 'TestName', disabled: 'disabled' }" />
             </div>
 
 
@@ -383,7 +384,6 @@
         GetFailData: UrlBase + "/FailReport/GetFailData",
         OpenFileDirectory: UrlBase + "/FailReport/OpenFileDirectory?Path=",
         SetLogsPath_Server: UrlBase + "/FailReport/SetLogsPath?Path=",
-        GetGetPassReport: UrlBase + "/FailReport/GetPassReport?PathName="
     }
 
     const { createApp, reactive, ref, toRaw } = Vue
@@ -468,7 +468,7 @@
                     this.isUploading = false;
                     return false;
                 }
-                
+
                 return true;
             },
             uploadSuccess(data) {
@@ -511,23 +511,6 @@
             sleep(ms) {
                 return new Promise(resolve => setTimeout(resolve, ms));
             },
-            GerGrrSettingsData() {
-                var SettingsDB = []
-                // 获取数据
-                fetch(UrlPath.GetGetPassReport + this.SelectValue).then(response => {
-                    console.info(response)
-                    return response.json()   //若添加了大括号需要添加return 不然返回的是一个promise对象
-                })
-                    .then(data => {
-                        data.forEach(element => {
-                            SettingsDB.push({
-                                key: element.TestName,
-                                label: element.TestName,
-                            })
-                        })
-                        this.GrrSettingsdata = SettingsDB
-                    })
-            },
             filterMethod(query, item) {
                 if (query) {
                     return toRaw(item.label).toLowerCase().includes(query.toLowerCase())
@@ -536,7 +519,6 @@
             },
             GetAllFail(Path) {
                 this.openFullScreen()
-                this.GerGrrSettingsData()
                 var _this = this
                 console.dir(Path)
                 $.ajax({
@@ -545,8 +527,9 @@
                     type: "GET",
                     dataType: "json",
                     success: function (data) {
-                        console.log("GetAllFail" + data);
+                        console.log(data);
                         _this.FailList = data
+                        _this.GrrSettingsdata = data.PassReport
                         _this.overview = data.StrMes.split("\n")
 
                         // 这个时浅拷贝 更改FailList 会影响TempFailList
@@ -593,7 +576,7 @@
 
 
                 var myChart = _this._mychart
-                console.dir(myChart)
+                // console.dir(myChart)
 
                 var option;
 
@@ -654,8 +637,7 @@
             GetGrrChartData() {
                 var GrrObj = toRaw(this._Grrchart);
                 DataGRR = []
-                var GRRItmeShow
-                // console.dir(UrlPath.GetGetPassReport)
+                var GRRItmeShow 
                 // this.ShowGRRItme = "通道4电压;NTC1"
                 // 获取输入的数据             
                 var _this = this
@@ -664,80 +646,73 @@
                 if (!this.SelectValue) {
                     return
                 }
+
                 // 获取数据
-                fetch(UrlPath.GetGetPassReport + this.SelectValue).then(response => {
-                    console.info(response)
-                    return response.json()   //若添加了大括号需要添加return 不然返回的是一个promise对象
-                })
-                    .then(data => {
-                        legendTyep = []
-                        console.dir(data)
-                        data.forEach(element => {
-                            // 判断是否在GRRItme中
-                            if (GRRItme.indexOf(element.TestName) != -1) {
-                                console.dir(element.TestName)
-                                legendTyep.push(element.TestName)
-                                DataGRR.push({
-                                    name: element.TestName,
-                                    type: 'line',
-                                    // stack: 'Total',
-                                    // stackStrategy: 'all',
-                                    label: {
-                                        show: true,
-                                        position: 'top',
-                                    },
+                legendTyep = []
+                console.dir(_this.GrrSettingsdata)
+                _this.GrrSettingsdata.forEach(element => {
+                    // 判断是否在GRRItme中
+                    if (GRRItme.indexOf(element.TestName) != -1) {
+                        console.dir(element.TestName)
+                        legendTyep.push(element.TestName)
+                        DataGRR.push({
+                            name: element.TestName,
+                            type: 'line',
+                            // stack: 'Total',
+                            // stackStrategy: 'all',
+                            label: {
+                                show: true,
+                                position: 'top',
+                            },
 
-                                    data: element.PassData
-                                })
-                            }
+                            data: element.PassData
+                        })
+                    }
 
-                        });
+                });
 
-                        console.dir(DataGRR)
+                console.dir(DataGRR)
 
-                        option = {
-                            title: {
-                                text: 'GRR',
-                                subtext: "测量系统的重复性和复现性",
-                                // left: "center",
-                                // top: "center",
-                            },
-                            tooltip: {
-                                //trigger: 'item',
-                                trigger: 'axis',
-                                //axisPointer: {
-                                //    type: 'line'
-                                //}
-                            },
-                            legend: {
-                                data: legendTyep,
-                                // left: 'right', 
-                            },
-                            grid: {
-                                left: '3%',
-                                right: '4%',
-                                bottom: '3%',
-                                containLabel: true
-                            },
-                            toolbox: {
-                                feature: {
-                                    saveAsImage: {}
-                                }
-                            },
-                            xAxis: {
-                                type: 'category',
-                                boundaryGap: false,
-                                // data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-                            },
-                            yAxis: {
-                                type: 'value'
-                            },
-                            series: DataGRR
-                        };
-                        option && GrrObj.setOption(option, true);
-                    })
-                    .catch(err => console.log(err))
-                    .finally()
+                option = {
+                    title: {
+                        text: 'GRR',
+                        subtext: "测量系统的重复性和复现性",
+                        // left: "center",
+                        // top: "center",
+                    },
+                    tooltip: {
+                        //trigger: 'item',
+                        trigger: 'axis',
+                        //axisPointer: {
+                        //    type: 'line'
+                        //}
+                    },
+                    legend: {
+                        data: legendTyep,
+                        // left: 'right', 
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '3%',
+                        containLabel: true
+                    },
+                    toolbox: {
+                        feature: {
+                            saveAsImage: {}
+                        }
+                    },
+                    xAxis: {
+                        type: 'category',
+                        boundaryGap: false,
+                        // data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                    },
+                    yAxis: {
+                        type: 'value'
+                    },
+                    series: DataGRR
+                };
+                option && GrrObj.setOption(option, true);
             },
             SetLogsPath(params) {
                 if (!this.LogsPath) {

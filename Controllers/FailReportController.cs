@@ -31,71 +31,7 @@ namespace FailReport.Controllers
         {
             _uploadService = uploadService;
         }
-
-        [HttpGet]
-        public string GetPassReport(string PathName = "")
-        {
-            List<PassReport> result = new List<PassReport>();
-            string FileNameCont = "Pass";
-            // 获取全部Pass 的文件
-            // 获取指定目录所有的log  csv 的或 txt
-            // 如果未提供路径，则使用默认路径
-            string LogPathDir = PathName ?? DefaultPathName;
-
-            // 判断是否存在文件夹
-            if (!Directory.Exists(LogPathDir))
-            {
-                return "文件夹不存在";
-            }
-
-            string[] LogAll = Directory.GetFileSystemEntries(LogPathDir);
-            string[] FailS = LogAll.Where(m => m.Contains(FileNameCont)).ToArray();
-            string FileType = Path.GetExtension(FailS[0].ToString()); //.txt
-            try
-            {
-                foreach (string FailPath in FailS)
-                {
-                    string[] fileLines = System.IO.File.ReadAllLines(FailPath, Encoding.UTF8); // 读取文件内容
-
-                    string searchString = FileNameCont; // 要查找的字符串
-
-                    foreach (string line in fileLines)
-                    {
-
-
-                        if (line.Contains(searchString) && (!line.Contains("TestResult")) && line.Split("\t").Count() > 4)
-                        {
-                            string TestName = $"{line.Split("\t")[0]}_{line.Split("\t")[1]}";
-                            string TestValues = (line.Split("\t")[3]).Replace(",", "").Trim();
-                            bool IsV = System.Text.RegularExpressions.Regex.IsMatch(TestValues, VerifyNumer);
-                            if (IsV)
-                            {
-
-                                PassReport? report = result.FirstOrDefault<PassReport>(M => M.TestName == TestName);
-
-                                PassReport passReport = report is null ? new PassReport()
-                                {
-                                    TestName = TestName,
-                                    PassData = new List<double>()
-                                } : report;
-                                passReport.PassData.Add(double.Parse(TestValues));
-                                int resCount = result.Where(M => M.TestName == TestName).Count();
-                                if (resCount <= 0)
-                                {
-                                    result.Add(passReport);
-                                }
-                            }
-
-                            // 读取文件 若为数字的部分则添加到list中
-                            // 组合数据返回  
-                        }
-                    }
-                }
-            }
-            catch (Exception ex) { }
-
-            return JsonSerializer.Serialize(result);
-        }
+ 
 
 
         /// <summary>
@@ -370,7 +306,7 @@ namespace FailReport.Controllers
             _failList.StrMes = "Passed:\t" + PassS.Count()
                 + "\nFailing:\t" + FailS.Count()
                 + "\nSuccessRate:\t" + Math.Round((1 - (1.0 * FailS.Count() / LogAll.Count())) * 100, 2) + "%";
-            _failList.FailCount = _failList.Data.Count;
+            //_failList.FailCount = _failList.Data.Count;
             _failList.GroupDatas = new List<GroupData>();
 
 
@@ -485,19 +421,7 @@ namespace FailReport.Controllers
     public class FailList
     {
         //   public int FailCount { get; set { if (value < 0) { throw new ArgumentOutOfRangeException("FailCount", "不能设置负数"); } else { FailCount = value; } } }
-        public int FailCount
-        {
-            get; set;
-            //get { return FailCount; }
-            //set
-            //{
-            //    if (Data.Count > 0)
-            //    {
-            //        FailCount = Data.Count;
-            //    }
-            //}
-
-        }
+     
         public List<FailData> Data { get; set; }
 
         public string StrMes { get; set; }
